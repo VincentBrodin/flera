@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -15,10 +16,10 @@ type Server struct {
 	ln      *net.TCPListener
 }
 
-type Handler func(senderId uint32, data []byte) error
+type Handler func(s *Server, connId uint32, data []byte) error
 
-func (s *Server) Register(id uint32, handler Handler) {
-	s.callMap[id] = handler
+func (s *Server) Register(callId uint32, handler Handler) {
+	s.callMap[callId] = handler
 }
 
 func (s *Server) Start(port string) error {
@@ -35,16 +36,80 @@ func (s *Server) Start(port string) error {
 			continue
 		}
 
-		s.connMap.Store(s.runId, conn)
 		go s.handleConn(s.runId, conn)
 		s.runId++
 	}
 }
 
-func (s *Server) handleConn(id uint32, conn *net.TCPConn) {
+func (s *Server) SendToClient(connId, callId uint32, data []byte) error {
+	return s.send(connId, callId, data)
+}
+func (s *Server) SendToClients(connIds []uint32, callId uint32, data []byte) error {
+	var errs []error
+	for _, connId := range connIds {
+		if err := s.send(connId, callId, data); err != nil {
+			errs = append(errs, fmt.Errorf("conn %d: %w", connId, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *Server) BroadCast(callId uint32, data []byte) error {
+	var errs []error
+	s.connMap.Range(func(key, value any) bool {
+		connId, ok := key.(uint32)
+		if !ok {
+			errs = append(errs, fmt.Errorf("invalid connection id: %v", key))
+			return true
+		}
+
+		if err := s.send(connId, callId, data); err != nil {
+			errs = append(errs, fmt.Errorf("conn %d: %w", connId, err))
+		}
+		return true
+	})
+	return errors.Join(errs...)
+}
+
+func (s *Server) send(connId, callId uint32, data []byte) error {
+	fmt.Printf("Trying to send message to %d\n", connId)
+	val, ok := s.connMap.Load(connId)
+	if !ok {
+		return fmt.Errorf("Could not find %d in the connMap", connId)
+	}
+
+	conn, ok := val.(*net.TCPConn)
+	if !ok {
+		return fmt.Errorf("Could convert conn map output to TCPConn")
+	}
+
+	callBuf := new(bytes.Buffer)
+	if err := binary.Write(callBuf, binary.BigEndian, uint32(callId)); err != nil {
+		return err
+	}
+
+	sizeBuf := new(bytes.Buffer)
+	if err := binary.Write(sizeBuf, binary.BigEndian, uint32(len(data))); err != nil {
+		return err
+	}
+
+	packet := append(append(callBuf.Bytes(), sizeBuf.Bytes()...), data...)
+	if _, err := conn.Write(packet); err != nil {
+		return err
+	}
+
+	fmt.Printf("Message sent to %d\n", connId)
+	return nil
+}
+
+func (s *Server) handleConn(connId uint32, conn *net.TCPConn) {
+	// Store player
+	s.connMap.Store(connId, conn)
+	defer s.connMap.Delete(connId)
+	defer fmt.Printf("Conn %d lost\n", connId)
 	// send id
 	idBuf := new(bytes.Buffer)
-	if err := binary.Write(idBuf, binary.BigEndian, id); err != nil {
+	if err := binary.Write(idBuf, binary.BigEndian, connId); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -84,7 +149,7 @@ func (s *Server) handleConn(id uint32, conn *net.TCPConn) {
 
 		handler, ok := s.callMap[call]
 		if ok {
-			handler(id, data)
+			handler(s, connId, data)
 		} else {
 			fmt.Printf("No handler with id %d\n", call)
 			return

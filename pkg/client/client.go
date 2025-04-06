@@ -14,7 +14,7 @@ type Client struct {
 	server  *net.TCPConn
 }
 
-type Handler func(senderId uint32, data []byte) error
+type Handler func(c *Client, data []byte) error
 
 func (c *Client) Register(id uint32, handler Handler) {
 	c.callMap[id] = handler
@@ -47,14 +47,57 @@ func (c *Client) Connect(port string) error {
 		return err
 	}
 
+	go c.handleConn()
+
 	fmt.Println(c.Id)
 
 	return nil
 }
 
-func (c *Client) Send(id uint32, data []byte) error {
+func (c *Client) handleConn() {
+	fmt.Println("Waiting")
+	// listen for messages
+	info := make([]byte, 8)
+	for {
+		// First read the info part of the packet
+		if _, err := c.server.Read(info); err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Got something")
+
+		var call uint32
+		if err := binary.Read(bytes.NewReader(info[:4]), binary.BigEndian, &call); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		var size uint32
+		if err := binary.Read(bytes.NewReader(info[4:]), binary.BigEndian, &size); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// Read data
+		data := make([]byte, size)
+		if _, err := c.server.Read(data); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		handler, ok := c.callMap[call]
+		if ok {
+			handler(c, data)
+		} else {
+			fmt.Printf("No handler with id %d\n", call)
+			return
+		}
+	}
+}
+
+func (c *Client) Send(callId uint32, data []byte) error {
 	callBuf := new(bytes.Buffer)
-	if err := binary.Write(callBuf, binary.BigEndian, uint32(id)); err != nil {
+	if err := binary.Write(callBuf, binary.BigEndian, uint32(callId)); err != nil {
 		return err
 	}
 

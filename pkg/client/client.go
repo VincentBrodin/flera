@@ -9,9 +9,10 @@ import (
 )
 
 type Client struct {
-	Id      uint32
-	callMap map[uint32]Handler
-	server  *net.TCPConn
+	Id        uint32
+	callMap   map[uint32]Handler
+	server    *net.TCPConn
+	Connected bool
 }
 
 type Handler func(c *Client, data []byte) error
@@ -30,10 +31,12 @@ func (c *Client) Connect(port string) error {
 		c.server, err = net.DialTCP("tcp", nil, addr)
 		if err != nil {
 			fmt.Println("Failed to connect, will try again in 5 secs")
-			time.Sleep(5000)
+			time.Sleep(5*time.Second)
 			if 5 == attempts {
 				return err
 			}
+			attempts++
+			continue
 		}
 		break
 	}
@@ -55,6 +58,8 @@ func (c *Client) Connect(port string) error {
 }
 
 func (c *Client) handleConn() {
+	c.Connected = true
+	defer func() { c.Connected = false }()
 	fmt.Println("Waiting")
 	// listen for messages
 	info := make([]byte, 8)
@@ -117,5 +122,6 @@ func (c *Client) Send(callId uint32, data []byte) error {
 func New() *Client {
 	c := new(Client)
 	c.callMap = make(map[uint32]Handler)
+	c.Connected = false
 	return c
 }

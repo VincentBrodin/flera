@@ -10,13 +10,16 @@ import (
 )
 
 type Server struct {
-	connMap sync.Map
-	callMap map[uint32]Handler
-	runId   uint32
-	ln      *net.TCPListener
+	connMap   sync.Map
+	callMap   map[uint32]Handler
+	runId     uint32
+	ln        *net.TCPListener
+	OnConn    Event
+	OnDisConn Event
 }
 
 type Handler func(s *Server, connId uint32, data []byte) error
+type Event func(s *Server, connId uint32)
 
 func (s *Server) Register(callId uint32, handler Handler) {
 	s.callMap[callId] = handler
@@ -73,14 +76,10 @@ func (s *Server) BroadCast(callId uint32, data []byte) error {
 
 func (s *Server) send(connId, callId uint32, data []byte) error {
 	fmt.Printf("Trying to send message to %d\n", connId)
-	val, ok := s.connMap.Load(connId)
-	if !ok {
-		return fmt.Errorf("Could not find %d in the connMap", connId)
-	}
 
-	conn, ok := val.(*net.TCPConn)
-	if !ok {
-		return fmt.Errorf("Could convert conn map output to TCPConn")
+	conn, err := s.GetConn(connId)
+	if err != nil {
+		return err
 	}
 
 	callBuf := new(bytes.Buffer)
@@ -102,11 +101,30 @@ func (s *Server) send(connId, callId uint32, data []byte) error {
 	return nil
 }
 
+func (s *Server) GetConn(connId uint32) (*net.TCPConn, error) {
+	val, ok := s.connMap.Load(connId)
+	if !ok {
+		return nil, fmt.Errorf("Could not find %d in the connMap", connId)
+	}
+
+	conn, ok := val.(*net.TCPConn)
+	if !ok {
+		return nil, fmt.Errorf("Could convert conn map output to TCPConn")
+	}
+
+	return conn, nil
+}
+
 func (s *Server) handleConn(connId uint32, conn *net.TCPConn) {
 	// Store player
 	s.connMap.Store(connId, conn)
-	defer s.connMap.Delete(connId)
-	defer fmt.Printf("Conn %d lost\n", connId)
+	defer func() {
+		s.connMap.Delete(connId)
+		fmt.Printf("Conn %d lost\n", connId)
+		if s.OnDisConn != nil {
+			s.OnDisConn(s, connId)
+		}
+	}()
 	// send id
 	idBuf := new(bytes.Buffer)
 	if err := binary.Write(idBuf, binary.BigEndian, connId); err != nil {
@@ -117,6 +135,11 @@ func (s *Server) handleConn(connId uint32, conn *net.TCPConn) {
 	if _, err := conn.Write(idBuf.Bytes()); err != nil {
 		fmt.Println(err)
 		return
+	}
+
+	// send on conn event
+	if s.OnConn != nil {
+		s.OnConn(s, connId)
 	}
 
 	// listen for messages

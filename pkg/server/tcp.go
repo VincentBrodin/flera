@@ -40,7 +40,7 @@ func (s *Server) BroadcastSafe(handlerId uint32, data []byte) error {
 }
 
 func (s *Server) sendTcp(connId, callId uint32, data []byte) error {
-	fmt.Printf("Trying to send message to %d with tcp\n", connId)
+	// fmt.Printf("Trying to send message to %d with tcp\n", connId)
 
 	conn, err := s.getTcpConn(connId)
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *Server) sendTcp(connId, callId uint32, data []byte) error {
 		return err
 	}
 
-	fmt.Printf("Message sent to %d with tcp\n", connId)
+	// fmt.Printf("Message sent to %d with tcp\n", connId)
 	return nil
 }
 
@@ -83,17 +83,6 @@ func (s *Server) getTcpConn(connId uint32) (*net.TCPConn, error) {
 func (s *Server) handleTcpConn(connId uint32, conn *net.TCPConn) {
 	// store client
 	s.tcpConns.Store(connId, conn)
-
-	tcpRemoteAddr, ok := conn.RemoteAddr().(*net.TCPAddr)
-	if !ok {
-		fmt.Println("Could not assert TCP connection to *net.TCPAddr")
-		return
-	}
-	udpAddr := &net.UDPAddr{
-		IP:   tcpRemoteAddr.IP,
-		Port: tcpRemoteAddr.Port,
-	}
-	s.udpAddrs.Store(connId, udpAddr)
 
 	defer func() {
 		s.tcpConns.Delete(connId)
@@ -151,7 +140,11 @@ func (s *Server) handleTcpConn(connId uint32, conn *net.TCPConn) {
 		}
 
 		if handler, ok := s.handlers[handlerId]; ok {
-			go handler(s, connId, data)
+			go func() {
+				if err := handler(s, connId, data); err != nil {
+					fmt.Println(err)
+				}
+			}()
 		} else {
 			fmt.Printf("No handler with id %d\n", handlerId)
 			continue

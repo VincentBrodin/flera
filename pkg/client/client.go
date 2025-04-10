@@ -99,36 +99,33 @@ func (c *Client) handleUdpConn() {
 		fmt.Println("udp lost")
 	}()
 
+	if err := c.SendFast(^uint32(0), []byte{}); err != nil{
+		fmt.Println(err)
+	}
+
 	// listen for messages
-	buf := make([]byte, c.UdpPacketSize+8)
+	buf := make([]byte, c.UdpPacketSize+4)
 	for {
-		fmt.Println("Waiting on udp")
+		// fmt.Println("Waiting on udp")
 
 		n, err := c.udpServer.Read(buf)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Got something from udp")
-
-		var connId uint32
-		if err := binary.Read(bytes.NewReader(buf[:4]), binary.BigEndian, &connId); err != nil {
-			fmt.Println(err)
-			continue
-		}
+		// fmt.Println("Got something from udp")
 
 		var handlerId uint32
-		if err := binary.Read(bytes.NewReader(buf[4:8]), binary.BigEndian, &handlerId); err != nil {
+		if err := binary.Read(bytes.NewReader(buf[:4]), binary.BigEndian, &handlerId); err != nil {
 			fmt.Println(err)
 			continue
 		}
 
-		fmt.Println(connId)
-		fmt.Println(handlerId)
+		// fmt.Println(handlerId)
 
 		handler, ok := c.handlers[handlerId]
 		if ok {
-			handler(c, buf[8:n])
+			handler(c, buf[4:n])
 		} else {
 			fmt.Printf("No handler with id %d from udp\n", handlerId)
 			continue
@@ -146,14 +143,14 @@ func (c *Client) handleTcpConn() {
 	// listen for messages
 	info := make([]byte, 8)
 	for {
-		fmt.Println("Waiting on tcp")
+		// fmt.Println("Waiting on tcp")
 
 		// First read the info part of the packet
 		if _, err := c.tcpServer.Read(info); err != nil {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Got something on tcp")
+		// fmt.Println("Got something on tcp")
 
 		var handlerId uint32
 		if err := binary.Read(bytes.NewReader(info[:4]), binary.BigEndian, &handlerId); err != nil {
@@ -199,7 +196,7 @@ func (c *Client) SendSafe(handlerId uint32, data []byte) error {
 		return err
 	}
 
-	fmt.Printf("Sent TCP to server: connId=%d, handlerId=%d, size=%d\n", c.Id, handlerId, len(data))
+	// fmt.Printf("Sent TCP to server: connId=%d, handlerId=%d, size=%d\n", c.Id, handlerId, len(data))
 
 	return nil
 }
@@ -215,7 +212,7 @@ func (c *Client) SendFast(handlerId uint32, data []byte) error {
 	}
 
 	packet := append(append(idBuf.Bytes(), handlerBuf.Bytes()...), data...)
-	if _, err := c.udpServer.WriteTo(packet, c.udpServer.RemoteAddr()); err != nil {
+	if _, err := c.udpServer.Write(packet); err != nil {
 		return err
 	}
 

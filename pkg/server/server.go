@@ -7,14 +7,14 @@ import (
 )
 
 type Server struct {
-	tcpConns   sync.Map
-	udpAddrs   sync.Map
-	handlers   map[uint32]Handler
-	runId     uint32
-	tcpLn        *net.TCPListener
-	udpConn *net.UDPConn
-	OnConn    Event
-	OnDisConn Event
+	tcpConns      sync.Map
+	udpAddrs      sync.Map
+	handlers      map[uint32]Handler
+	runId         uint32
+	tcpLn         *net.TCPListener
+	udpConn       *net.UDPConn
+	OnConn        Event
+	OnDisConn     Event
 	UdpPacketSize uint32
 }
 
@@ -60,7 +60,6 @@ func (s *Server) Start(port string) error {
 		s.runId++
 	}
 }
-
 
 func New() *Server {
 	s := new(Server)

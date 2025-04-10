@@ -40,7 +40,7 @@ func (s *Server) BroadcastFast(handlerId uint32, data []byte) error {
 }
 
 func (s *Server) sendUdp(connId, callId uint32, data []byte) error {
-	fmt.Printf("Trying to send message to %d with udp\n", connId)
+	// fmt.Printf("Trying to send message to %d with udp\n", connId)
 
 	addr, err := s.getUdpAddr(connId)
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *Server) sendUdp(connId, callId uint32, data []byte) error {
 		return err
 	}
 
-	fmt.Printf("Message sent to %d with udp\n", connId)
+	// fmt.Printf("Message sent to %d with udp\n", connId)
 	return nil
 }
 
@@ -78,17 +78,25 @@ func (s *Server) getUdpAddr(connId uint32) (*net.UDPAddr, error) {
 func (s *Server) serveUDP() {
 	defer s.udpConn.Close()
 	buf := make([]byte, s.UdpPacketSize+8)
+	fmt.Println(s.udpConn.LocalAddr())
+
+	defer func() {
+		s.udpAddrs.Clear()
+		fmt.Println("Conn lost via udp")
+	}()
+
+	// fmt.Printf("buf is %d big\n", len(buf))
 	for {
-		fmt.Println("Udp serving")
-		n, _, err := s.udpConn.ReadFromUDP(buf)
-		fmt.Println("Got udp message")
+		// fmt.Println("Udp serving")
+		n, addr, err := s.udpConn.ReadFromUDP(buf)
+		// fmt.Println("Got udp message")
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 
 		var connId uint32
-		if err := binary.Read(bytes.NewReader(buf[0:4]), binary.BigEndian, &connId); err != nil {
+		if err := binary.Read(bytes.NewReader(buf[:4]), binary.BigEndian, &connId); err != nil {
 			fmt.Println(err)
 			continue
 		}
@@ -99,8 +107,18 @@ func (s *Server) serveUDP() {
 			continue
 		}
 
+		if handlerId == ^uint32(0) {
+			s.udpAddrs.Store(connId, addr)
+			fmt.Printf("Hello world stuff from %d\n", connId)
+			continue
+		}
+
 		if handler, ok := s.handlers[handlerId]; ok {
-			go handler(s, connId, buf[8:n])
+			go func() {
+				if err := handler(s, connId, buf[8:n]); err != nil {
+					fmt.Println(err)
+				}
+			}()
 		} else {
 			fmt.Printf("No handler found for function %d\n", handlerId)
 		}

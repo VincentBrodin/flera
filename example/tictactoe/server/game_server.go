@@ -1,21 +1,22 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"flera/pkg/server"
 	"fmt"
-	"net"
 	"sync"
 )
 
 const (
 	SET_TEAM     uint32 = 1
 	UPDATE_STATE uint32 = 2
+	MOUSE_POS    uint32 = 3
 )
 
 type Client struct {
 	Id     uint32
 	TeamId int
-	Conn   *net.TCPConn
 }
 
 var teamA *Client
@@ -35,7 +36,20 @@ func main() {
 	s.OnDisConn = OnDisConn
 
 	s.Register(UPDATE_STATE, UpdateState)
+	s.Register(MOUSE_POS, MousePos)
 	fmt.Println(s.Start(":5050"))
+}
+
+func MousePos(s *server.Server, connId uint32, data []byte) error {
+	var x float32
+	if err := binary.Read(bytes.NewReader(data[:4]), binary.BigEndian, &x); err != nil {
+		return err
+	}
+	var y float32
+	if err := binary.Read(bytes.NewReader(data[4:]), binary.BigEndian, &y); err != nil {
+		return err
+	}
+	return nil
 }
 
 func UpdateState(s *server.Server, connId uint32, data []byte) error {
@@ -58,7 +72,7 @@ func UpdateState(s *server.Server, connId uint32, data []byte) error {
 			y = (i - 1) / 3
 			stateData[i] = uint8(state[x][y])
 		}
-		return s.BroadCast(UPDATE_STATE, stateData)
+		return s.BroadcastSafe(UPDATE_STATE, stateData)
 	}
 
 	if curTeam == teamA {
@@ -75,53 +89,48 @@ func UpdateState(s *server.Server, connId uint32, data []byte) error {
 		y = (i - 2) / 3
 		stateData[i] = uint8(state[x][y])
 	}
-	return s.BroadCast(UPDATE_STATE, stateData)
+	return s.BroadcastSafe(UPDATE_STATE, stateData)
 }
 
-
 func checkWin(board [][]int) int {
-    for i := range 3 {
-        // Check row
-        if board[i][0] != 0 && board[i][0] == board[i][1] && board[i][0] == board[i][2] {
-            return board[i][0]
-        }
-        // Check column
-        if board[0][i] != 0 && board[0][i] == board[1][i] && board[0][i] == board[2][i] {
-            return board[0][i]
-        }
-    }
+	for i := range 3 {
+		// Check row
+		if board[i][0] != 0 && board[i][0] == board[i][1] && board[i][0] == board[i][2] {
+			return board[i][0]
+		}
+		// Check column
+		if board[0][i] != 0 && board[0][i] == board[1][i] && board[0][i] == board[2][i] {
+			return board[0][i]
+		}
+	}
 
-    // Check diagonals
-    if board[0][0] != 0 && board[0][0] == board[1][1] && board[0][0] == board[2][2] {
-        return board[0][0]
-    }
-    if board[0][2] != 0 && board[0][2] == board[1][1] && board[0][2] == board[2][0] {
-        return board[0][2]
-    }
+	// Check diagonals
+	if board[0][0] != 0 && board[0][0] == board[1][1] && board[0][0] == board[2][2] {
+		return board[0][0]
+	}
+	if board[0][2] != 0 && board[0][2] == board[1][1] && board[0][2] == board[2][0] {
+		return board[0][2]
+	}
 
-    // No winner
-    return 0
+	// No winner
+	return 0
 }
 
 func OnConn(s *server.Server, connId uint32) {
-	conn, err := s.GetConn(connId)
-	if err != nil {
-		return
-	}
 	mu.Lock()
 	defer mu.Unlock()
 	if teamA == nil {
 		teamA = &Client{
-			Id:   connId,
-			Conn: conn,
+			Id:     connId,
+			TeamId: 1,
 		}
 	} else if teamB == nil {
 		teamB = &Client{
-			Id:   connId,
-			Conn: conn,
+			Id:     connId,
+			TeamId: 2,
 		}
 	} else {
-		conn.Close()
+		// Cick player
 		return
 	}
 
@@ -132,13 +141,11 @@ func OnConn(s *server.Server, connId uint32) {
 			}
 		}
 
-		dataA := []byte{1} // true
-		teamA.TeamId = 1
-		_ = s.SendToClient(teamA.Id, SET_TEAM, dataA)
+		dataA := []byte{byte(teamA.TeamId)} // true
+		_ = s.SendToClientSafe(teamA.Id, SET_TEAM, dataA)
 
-		dataB := []byte{2} // false
-		teamB.TeamId = 2
-		_ = s.SendToClient(teamB.Id, SET_TEAM, dataB)
+		dataB := []byte{byte(teamB.TeamId)} // true
+		_ = s.SendToClientSafe(teamB.Id, SET_TEAM, dataB)
 
 		curTeam = teamA
 	}

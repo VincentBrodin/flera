@@ -1,4 +1,4 @@
-CLIENTS ?= 1
+CLIENTS ?= 2
 
 dev:
 	@for /L %%i in (1,1,$(CLIENTS)) do ( \

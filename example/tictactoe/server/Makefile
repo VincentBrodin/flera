@@ -1,2 +1,2 @@
 dev:
-	go run . 5050
+	go run . 2948

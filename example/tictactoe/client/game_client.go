@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"flera/pkg/client"
 	"fmt"
 
@@ -10,6 +12,7 @@ import (
 const (
 	SET_TEAM     uint32 = 1
 	UPDATE_STATE uint32 = 2
+	MOUSE_POS    uint32 = 3
 )
 
 var playerTurn bool = false
@@ -40,7 +43,7 @@ func main() {
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.RayWhite)
 
-		if !c.Connected {
+		if !c.Connected() {
 			rl.DrawText("Connecting", 0, 0, 20, rl.Black)
 			if !triedToConnect {
 				triedToConnect = true
@@ -63,9 +66,34 @@ func main() {
 					data := []byte{uint8(x), uint8(y)}
 					playerTurn = false
 					board.State[x][y] = team
-					c.Send(UPDATE_STATE, data)
+					c.SendSafe(UPDATE_STATE, data)
 				}
 			}
+
+			mousePos := rl.GetMousePosition()
+			if team == 1 {
+				rl.DrawCircle(int32(mousePos.X), int32(mousePos.Y), 10, rl.Blue)
+			} else {
+				rl.DrawCircle(int32(mousePos.X), int32(mousePos.Y), 10, rl.Red)
+			}
+
+			x := mousePos.X / float32(rl.GetScreenWidth())
+			xBuf := new(bytes.Buffer)
+			if err := binary.Write(xBuf, binary.BigEndian, x); err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			y := mousePos.Y / float32(rl.GetScreenHeight())
+			yBuf := new(bytes.Buffer)
+			if err := binary.Write(yBuf, binary.BigEndian, y); err != nil {
+				fmt.Println(err)
+				continue
+			}
+			data := append(xBuf.Bytes(), yBuf.Bytes()...)
+			c.SendFast(MOUSE_POS, data)
+
+			// fmt.Println(x, y)
 		}
 
 		rl.EndDrawing()

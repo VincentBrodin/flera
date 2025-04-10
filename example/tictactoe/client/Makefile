@@ -1,3 +1,3 @@
 dev:
-	start "client" cmd /c "go run . 2948"
+	start "client" cmd /c "go run . 2894"
 

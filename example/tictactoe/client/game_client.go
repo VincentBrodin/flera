@@ -20,6 +20,8 @@ var team int = 0
 var mouseDown bool = false
 var board *Board
 var winner int = 0
+var oppX int32
+var oppY int32
 
 func main() {
 	board = new(Board)
@@ -31,6 +33,7 @@ func main() {
 	c := client.New()
 	c.Register(SET_TEAM, SetTeam)
 	c.Register(UPDATE_STATE, UpdateState)
+	c.Register(MOUSE_POS, MousePos)
 	// rl setup
 	rl.SetConfigFlags(rl.FlagWindowResizable)
 	rl.InitWindow(800, 450, "Client")
@@ -47,7 +50,7 @@ func main() {
 			rl.DrawText("Connecting", 0, 0, 20, rl.Black)
 			if !triedToConnect {
 				triedToConnect = true
-				go c.Connect(":5050")
+				go c.Connect(":2489")
 			}
 		} else {
 			board.Draw()
@@ -73,25 +76,30 @@ func main() {
 			mousePos := rl.GetMousePosition()
 			if team == 1 {
 				rl.DrawCircle(int32(mousePos.X), int32(mousePos.Y), 10, rl.Blue)
+				rl.DrawCircle(oppX, oppY, 5, rl.Red)
 			} else {
 				rl.DrawCircle(int32(mousePos.X), int32(mousePos.Y), 10, rl.Red)
+				rl.DrawCircle(oppX, oppY, 5, rl.Blue)
 			}
 
-			x := mousePos.X / float32(rl.GetScreenWidth())
+			xPad, yPad, size := board.GetScreenBounds()
+			x := (mousePos.X - float32(xPad)) / float32(size)
 			xBuf := new(bytes.Buffer)
 			if err := binary.Write(xBuf, binary.BigEndian, x); err != nil {
 				fmt.Println(err)
 				continue
 			}
 
-			y := mousePos.Y / float32(rl.GetScreenHeight())
+			y := (mousePos.Y - float32(yPad)) / float32(size)
 			yBuf := new(bytes.Buffer)
 			if err := binary.Write(yBuf, binary.BigEndian, y); err != nil {
 				fmt.Println(err)
 				continue
 			}
 			data := append(xBuf.Bytes(), yBuf.Bytes()...)
-			c.SendFast(MOUSE_POS, data)
+			if err := c.SendFast(MOUSE_POS, data); err != nil {
+				fmt.Println(err)
+			}
 
 			// fmt.Println(x, y)
 		}
@@ -130,5 +138,32 @@ func UpdateState(c *client.Client, data []byte) error {
 		fmt.Printf("x: %d y: %d\n", x, y)
 		board.State[x][y] = int(state[i])
 	}
+	return nil
+}
+
+func MousePos(c *client.Client, data []byte) error {
+	var id uint32
+	if err := binary.Read(bytes.NewReader(data[:4]), binary.BigEndian, &id); err != nil {
+		return err
+	}
+
+	if id == c.Id {
+		return nil
+	}
+	var x float32
+	if err := binary.Read(bytes.NewReader(data[4:8]), binary.BigEndian, &x); err != nil {
+		return err
+	}
+
+	var y float32
+	if err := binary.Read(bytes.NewReader(data[8:]), binary.BigEndian, &y); err != nil {
+		return err
+	}
+
+	xPad, yPad, size := board.GetScreenBounds()
+
+	oppX = int32(float32(xPad) + x*float32(size))
+	oppY = int32(float32(yPad) + y*float32(size))
+
 	return nil
 }

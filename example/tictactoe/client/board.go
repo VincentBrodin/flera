@@ -8,13 +8,7 @@ type Board struct {
 }
 
 func (b *Board) Draw() {
-	width := int32(rl.GetScreenWidth())
-	height := int32(rl.GetScreenHeight())
-
-	size := int32(float64(min(width, height)) * 0.9)
-	xPad := (width - size) / 2
-	yPad := (height - size) / 2
-
+	xPad, yPad, size := b.GetScreenBounds()
 	rl.DrawRectangle(xPad, yPad, size, size, rl.Black)
 	xPos := xPad
 	yPos := yPad
@@ -41,17 +35,22 @@ func (b *Board) Draw() {
 	}
 }
 
+func (b *Board) GetScreenBounds() (int32, int32, int32) {
+	width := int32(rl.GetScreenWidth())
+	height := int32(rl.GetScreenHeight())
+	size := int32(float64(min(width, height)) * 0.9)
+	xPad := (width - size) / 2
+	yPad := (height - size) / 2
+	return xPad, yPad, size
+}
+
 func (b *Board) Click() (int, int, bool) {
 	if rl.IsMouseButtonDown(rl.MouseButtonLeft) {
 		if !b.mouseDown {
 			b.mouseDown = true
 			mousePos := rl.GetMousePosition()
-			width := int32(rl.GetScreenWidth())
-			height := int32(rl.GetScreenHeight())
 
-			size := int32(float64(min(width, height)) * 0.9)
-			xPad := (width - size) / 2
-			yPad := (height - size) / 2
+			xPad, yPad, size := b.GetScreenBounds()
 			if mousePos.X >= float32(xPad) && mousePos.X < float32(xPad+size) &&
 				mousePos.Y >= float32(yPad) && mousePos.Y < float32(yPad+size) {
 				step := size / 3

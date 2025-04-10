@@ -37,19 +37,26 @@ func main() {
 
 	s.Register(UPDATE_STATE, UpdateState)
 	s.Register(MOUSE_POS, MousePos)
-	fmt.Println(s.Start(":5050"))
+	fmt.Println(s.Start(":2489"))
 }
 
 func MousePos(s *server.Server, connId uint32, data []byte) error {
-	var x float32
-	if err := binary.Read(bytes.NewReader(data[:4]), binary.BigEndian, &x); err != nil {
+	// var x float32
+	// if err := binary.Read(bytes.NewReader(data[:4]), binary.BigEndian, &x); err != nil {
+	// 	return err
+	// }
+	// var y float32
+	// if err := binary.Read(bytes.NewReader(data[4:]), binary.BigEndian, &y); err != nil {
+	// 	return err
+	// }
+
+	idBuf := new(bytes.Buffer)
+	if err := binary.Write(idBuf, binary.BigEndian, connId); err != nil {
 		return err
 	}
-	var y float32
-	if err := binary.Read(bytes.NewReader(data[4:]), binary.BigEndian, &y); err != nil {
-		return err
-	}
-	return nil
+	packet := append(idBuf.Bytes(), data...)
+	// fmt.Println("TICK")
+	return s.BroadcastFast(MOUSE_POS, packet)
 }
 
 func UpdateState(s *server.Server, connId uint32, data []byte) error {
@@ -89,6 +96,8 @@ func UpdateState(s *server.Server, connId uint32, data []byte) error {
 		y = (i - 2) / 3
 		stateData[i] = uint8(state[x][y])
 	}
+
+	s.BroadcastFast(4, []byte("hello, world"))
 	return s.BroadcastSafe(UPDATE_STATE, stateData)
 }
 

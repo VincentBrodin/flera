@@ -13,8 +13,7 @@ It leverages both TCP and UDP for reliable and fast communication, making it sui
 - **Concurrency-Safe:** Designed with concurrency in mind, ensuring safe operation in multi-client environments.
 
 ## Installation
-```
-bash
+```bash
 go get github.com/VincentBrodin/flera
 ```
 ## Usage
@@ -23,8 +22,7 @@ go get github.com/VincentBrodin/flera
 
 To set up a server with flera, you need to create a server instance, register handlers for incoming messages, and start listening for connections.
 Here's a simplified example based on the TicTacToe server (`example/tictactoe/server/game_server.go`):
-```
-go
+```go
 package main
 
 import (
@@ -84,8 +82,7 @@ This example demonstrates:
 ### Client Setup
 
 To set up a client, you need to create a client instance, register handlers for incoming messages, and connect to the server. Here's a simplified example based on the TicTacToe client (`example/tictactoe/client/game_client.go`):
-```
-go
+```go
 package main
 
 import (

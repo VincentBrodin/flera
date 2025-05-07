@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"flera/pkg/server"
+	"flera/server"
 	"fmt"
 	"sync"
 )

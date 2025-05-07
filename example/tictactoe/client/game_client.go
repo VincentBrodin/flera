@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"flera/pkg/client"
+	"flera/client"
 	"fmt"
 
 	rl "github.com/gen2brain/raylib-go/raylib"

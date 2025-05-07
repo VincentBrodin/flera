@@ -26,7 +26,7 @@ Here's a simplified example based on the TicTacToe server (`example/tictactoe/se
 package main
 
 import (
-	"flera/pkg/server"
+	"flera/server"
 	"fmt"
 )
 
@@ -86,7 +86,7 @@ To set up a client, you need to create a client instance, register handlers for 
 package main
 
 import (
-	"flera/pkg/client"
+	"flera/client"
 	"fmt"
 )
 

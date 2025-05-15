@@ -1,4 +1,6 @@
-# flera
+## flera {adj.} /fle´ra/
+
+*(Swedish for "several")*
 
 ## Introduction
 
